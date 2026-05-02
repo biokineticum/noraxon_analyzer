@@ -35,15 +35,15 @@ class ModuleExtractor(QWidget):
         control_layout = QVBoxLayout(control_panel)
         
         # 1. Load File
-        group_load = QGroupBox("1. Wybierz plik z danymi")
+        group_load = QGroupBox("1. Select Data File")
         load_layout = QVBoxLayout()
         self.btn_load = QPushButton("Load File (.xlsx, .csv)")
         self.btn_load.clicked.connect(self.load_file)
-        self.lbl_file = QLabel("Brak pliku")
+        self.lbl_file = QLabel("No file selected")
         self.lbl_file.setWordWrap(True)
         
         self.cb_skiprows = QLineEdit("3")
-        self.cb_skiprows.setToolTip("Pomiń n pierwszych wierszy przy wczytywaniu (domyślnie 3 dla plików Noraxon/Ultium)")
+        self.cb_skiprows.setToolTip("Skip first n rows (default 3 for Noraxon/Ultium)")
         load_layout.addWidget(self.btn_load)
         load_layout.addWidget(self.lbl_file)
         
@@ -56,7 +56,7 @@ class ModuleExtractor(QWidget):
         control_layout.addWidget(group_load)
         
         # 2. Column Mapping
-        group_map = QGroupBox("2. Mapowanie Kolumn")
+        group_map = QGroupBox("2. Column Mapping")
         map_layout = QFormLayout()
         
         self.combo_time = QComboBox()
@@ -75,7 +75,7 @@ class ModuleExtractor(QWidget):
         map_layout.addRow("Force Y:", self.combo_fy)
         map_layout.addRow("Force Z:", self.combo_fz)
         
-        self.chk_convert_mg = QCheckBox("Konwertuj Accel z mG na m/s²")
+        self.chk_convert_mg = QCheckBox("Convert Accel from mG to m/s²")
         self.chk_convert_mg.setChecked(True)
         map_layout.addRow(self.chk_convert_mg)
         
@@ -83,7 +83,7 @@ class ModuleExtractor(QWidget):
         control_layout.addWidget(group_map)
         
         # 3. Parameters
-        group_params = QGroupBox("3. Parametry detekcji (Tarcza)")
+        group_params = QGroupBox("3. Detection Parameters (Force Plate)")
         params_layout = QFormLayout()
         
         self.inp_force_thresh = QLineEdit("400")
@@ -100,14 +100,14 @@ class ModuleExtractor(QWidget):
         control_layout.addWidget(group_params)
         
         # 4. Actions
-        group_actions = QGroupBox("4. Obliczenia i Zapis")
+        group_actions = QGroupBox("4. Calculation & Export")
         actions_layout = QVBoxLayout()
         
-        self.btn_calc = QPushButton("Identyfikuj uderzenia (Calculate & Plot)")
+        self.btn_calc = QPushButton("Identify Impacts (Calculate & Plot)")
         self.btn_calc.clicked.connect(self.calculate_and_plot)
         self.btn_calc.setEnabled(False)
         
-        self.btn_save = QPushButton("Tnij na Eventy i Zapisz")
+        self.btn_save = QPushButton("Cut Events & Save")
         self.btn_save.clicked.connect(self.save_events)
         self.btn_save.setEnabled(False)
         self.btn_save.setStyleSheet("background-color: #2ECC71; color: white; font-weight: bold;")
@@ -135,7 +135,7 @@ class ModuleExtractor(QWidget):
         main_layout.addWidget(plot_panel, stretch=1)
 
     def load_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Wybierz plik z danymi", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Data File", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
         if not file_path:
             return
             
@@ -154,7 +154,7 @@ class ModuleExtractor(QWidget):
             else:
                 self.data = pd.read_excel(file_path, skiprows=skiprows)
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Nie udało się wczytać pliku: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
             return
             
         # Update combo boxes
@@ -164,7 +164,7 @@ class ModuleExtractor(QWidget):
                   
         for combo in combos:
             combo.clear()
-            combo.addItems(["--- Brak ---"] + columns)
+            combo.addItems(["--- None ---"] + columns)
             
         # Auto-guess columns based on common names
         for i, col in enumerate(columns):
@@ -185,7 +185,7 @@ class ModuleExtractor(QWidget):
                 self.combo_fz.setCurrentIndex(i + 1)
                 
         self.btn_calc.setEnabled(True)
-        QMessageBox.information(self, "Sukces", f"Pomyślnie wczytano plik. Znaleziono {len(self.data)} wierszy.")
+        QMessageBox.information(self, "Success", f"Successfully loaded file. Found {len(self.data)} rows.")
 
     def calculate_and_plot(self):
         if self.data is None:
@@ -199,8 +199,8 @@ class ModuleExtractor(QWidget):
         fy_col = self.combo_fy.currentText()
         fz_col = self.combo_fz.currentText()
         
-        if time_col == "--- Brak ---" or fx_col == "--- Brak ---" or fy_col == "--- Brak ---" or fz_col == "--- Brak ---":
-            QMessageBox.warning(self, "Uwaga", "Musisz wybrać kolumnę czasu oraz przynajmniej kolumny siły X, Y, Z.")
+        if time_col == "--- None ---" or fx_col == "--- None ---" or fy_col == "--- None ---" or fz_col == "--- None ---":
+            QMessageBox.warning(self, "Warning", "You must select the Time column and at least Force X, Y, Z columns.")
             return
             
         try:
@@ -220,7 +220,7 @@ class ModuleExtractor(QWidget):
             df['resultant_force'] = np.sqrt(df['fx']**2 + df['fy']**2 + df['fz']**2)
             
             # Accel mapping if provided
-            if ax_col != "--- Brak ---" and ay_col != "--- Brak ---" and az_col != "--- Brak ---":
+            if ax_col != "--- None ---" and ay_col != "--- None ---" and az_col != "--- None ---":
                 if self.chk_convert_mg.isChecked():
                     # Przekonwertuj wszystkie kolumny mG w całym dataframe
                     for col in df.columns:
@@ -274,7 +274,7 @@ class ModuleExtractor(QWidget):
                 
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Resultant Force (N)')
-            ax.set_title(f'Absolute Top Force Peaks ({len(top_peaks)} znaleziono)')
+            ax.set_title(f'Absolute Top Force Peaks ({len(top_peaks)} found)')
             ax.legend(loc='upper right')
             ax.grid(True, alpha=0.3)
             self.figure.tight_layout()
@@ -282,11 +282,11 @@ class ModuleExtractor(QWidget):
             
             self.btn_save.setEnabled(len(top_peaks) > 0)
             
-            msg = f"Znaleziono {len(top_peaks)} peaków.\nZostały zaznaczone na wykresie."
-            QMessageBox.information(self, "Analiza zakończona", msg)
+            msg = f"Found {len(top_peaks)} peaks.\nThey have been marked on the plot."
+            QMessageBox.information(self, "Analysis Complete", msg)
             
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Wystąpił błąd podczas analizy:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"An error occurred during analysis:\n{str(e)}")
 
     def save_events(self):
         if not hasattr(self, 'processed_df') or not self.top_peak_indices:
@@ -311,8 +311,8 @@ class ModuleExtractor(QWidget):
                 event_data.to_excel(event_file_name, index=False)
                 saved_files.append(os.path.basename(event_file_name))
                 
-            msg = f"Pomyślnie wycięto i zapisano {len(saved_files)} zdarzeń w folderze docelowym:\n" + "\n".join(saved_files)
-            QMessageBox.information(self, "Sukces", msg)
+            msg = f"Successfully cut and saved {len(saved_files)} events in the target folder:\n" + "\n".join(saved_files)
+            QMessageBox.information(self, "Success", msg)
             
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Nie udało się zapisać eventów:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to save events:\n{str(e)}")

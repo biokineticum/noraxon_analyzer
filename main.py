@@ -18,15 +18,15 @@ class MainWindow(QMainWindow):
 
         # Tab 1: Data Preprocessing & Event Extraction (Tarcza)
         self.tab_extractor = ModuleExtractor()
-        self.tabs.addTab(self.tab_extractor, "1. Cięcie Eventów (Tarcza)")
+        self.tabs.addTab(self.tab_extractor, "1. Event Extraction (Force Plate)")
 
         # Tab 2: Target Velocity Analysis (Tarcza)
         self.tab_target = ModuleTarget()
-        self.tabs.addTab(self.tab_target, "2. Analiza Prędkości (Tarcza)")
+        self.tabs.addTab(self.tab_target, "2. Velocity Analysis (Force Plate)")
 
         # Tab 3: Air Analysis (Powietrze)
         self.tab_air = ModuleAir()
-        self.tabs.addTab(self.tab_air, "3. Analiza (Powietrze)")
+        self.tabs.addTab(self.tab_air, "3. Air Analysis (Inertial)")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -41,15 +41,15 @@ class ModuleAir(QWidget):
         control_layout = QVBoxLayout(control_panel)
         
         # 1. Load File
-        group_load = QGroupBox("1. Wczytaj surowe dane (Powietrze)")
+        group_load = QGroupBox("1. Load Raw Data (Air)")
         load_layout = QVBoxLayout()
         self.btn_load = QPushButton("Load File (.xlsx, .csv)")
         self.btn_load.clicked.connect(self.load_file)
-        self.lbl_file = QLabel("Brak pliku")
+        self.lbl_file = QLabel("No file selected")
         self.lbl_file.setWordWrap(True)
         
         self.cb_skiprows = QLineEdit("3")
-        self.cb_skiprows.setToolTip("Pomiń n pierwszych wierszy")
+        self.cb_skiprows.setToolTip("Skip first n rows")
         
         load_layout.addWidget(self.btn_load)
         load_layout.addWidget(self.lbl_file)
@@ -63,7 +63,7 @@ class ModuleAir(QWidget):
         control_layout.addWidget(group_load)
         
         # 2. Column Mapping
-        group_map = QGroupBox("2. Mapowanie Kolumn")
+        group_map = QGroupBox("2. Column Mapping")
         map_layout = QFormLayout()
         
         self.combo_time = QComboBox()
@@ -76,7 +76,7 @@ class ModuleAir(QWidget):
         map_layout.addRow("Accel Y:", self.combo_ay)
         map_layout.addRow("Accel Z:", self.combo_az)
         
-        self.chk_convert_mg = QCheckBox("Konwertuj z mG na m/s²")
+        self.chk_convert_mg = QCheckBox("Convert from mG to m/s²")
         self.chk_convert_mg.setChecked(True)
         map_layout.addRow(self.chk_convert_mg)
         
@@ -84,7 +84,7 @@ class ModuleAir(QWidget):
         control_layout.addWidget(group_map)
         
         # 3. Parameters
-        group_params = QGroupBox("3. Detekcja (Przyspieszenie)")
+        group_params = QGroupBox("3. Detection (Acceleration)")
         params_layout = QFormLayout()
         
         # Air usually has high acceleration. Provide a generic default.
@@ -102,10 +102,10 @@ class ModuleAir(QWidget):
         control_layout.addWidget(group_params)
         
         # 4. Actions
-        group_actions = QGroupBox("4. Cięcie i Analiza")
+        group_actions = QGroupBox("4. Cut & Analyze")
         actions_layout = QVBoxLayout()
         
-        self.btn_calc = QPushButton("Identyfikuj i Tnij na Eventy")
+        self.btn_calc = QPushButton("Identify & Cut Events")
         self.btn_calc.clicked.connect(self.calculate_and_cut)
         self.btn_calc.setEnabled(False)
         self.btn_calc.setStyleSheet("background-color: #E67E22; color: white; font-weight: bold;")
@@ -114,7 +114,7 @@ class ModuleAir(QWidget):
         
         self.list_events = QListWidget()
         self.list_events.itemClicked.connect(self.on_event_clicked)
-        actions_layout.addWidget(QLabel("Wykryte eventy (kliknij aby analizować):"))
+        actions_layout.addWidget(QLabel("Detected events (click to analyze):"))
         actions_layout.addWidget(self.list_events)
         
         group_actions.setLayout(actions_layout)
@@ -142,7 +142,7 @@ class ModuleAir(QWidget):
         main_layout.addWidget(plot_panel, stretch=1)
 
     def load_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Wybierz plik z danymi", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Data File", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
         if not file_path:
             return
             
@@ -161,7 +161,7 @@ class ModuleAir(QWidget):
             else:
                 self.data = pd.read_excel(file_path, skiprows=skiprows)
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Nie udało się wczytać pliku: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
             return
             
         columns = list(self.data.columns)
@@ -169,7 +169,7 @@ class ModuleAir(QWidget):
                   
         for combo in combos:
             combo.clear()
-            combo.addItems(["--- Brak ---"] + columns)
+            combo.addItems(["--- None ---"] + columns)
             
         for i, col in enumerate(columns):
             col_lower = col.lower()
@@ -185,7 +185,7 @@ class ModuleAir(QWidget):
         self.btn_calc.setEnabled(True)
         self.list_events.clear()
         self.saved_events_paths = []
-        QMessageBox.information(self, "Sukces", f"Wczytano {len(self.data)} wierszy.")
+        QMessageBox.information(self, "Success", f"Loaded {len(self.data)} rows.")
 
     def calculate_and_cut(self):
         if self.data is None:
@@ -196,8 +196,8 @@ class ModuleAir(QWidget):
         ay_col = self.combo_ay.currentText()
         az_col = self.combo_az.currentText()
         
-        if time_col == "--- Brak ---" or ax_col == "--- Brak ---" or ay_col == "--- Brak ---" or az_col == "--- Brak ---":
-            QMessageBox.warning(self, "Uwaga", "Musisz wybrać kolumnę czasu oraz kolumny przyspieszenia X, Y, Z.")
+        if time_col == "--- None ---" or ax_col == "--- None ---" or ay_col == "--- None ---" or az_col == "--- None ---":
+            QMessageBox.warning(self, "Warning", "You must select the Time column and Acceleration X, Y, Z columns.")
             return
             
         try:
@@ -242,7 +242,7 @@ class ModuleAir(QWidget):
                     top_peaks.append(index)
                     
             if not top_peaks:
-                QMessageBox.warning(self, "Brak peaków", "Nie znaleziono zdarzeń powyżej zadanego progu.")
+                QMessageBox.warning(self, "No peaks", "No events found above the given threshold.")
                 return
                 
             self.top_peak_indices = top_peaks
@@ -282,16 +282,16 @@ class ModuleAir(QWidget):
                 
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Resultant Accel (m/s²)')
-            ax.set_title(f'Top Accel Peaks ({len(top_peaks)} znaleziono)')
+            ax.set_title(f'Top Accel Peaks ({len(top_peaks)} found)')
             ax.legend(loc='upper right')
             ax.grid(True, alpha=0.3)
             self.figure.tight_layout()
             self.canvas.draw()
             
-            QMessageBox.information(self, "Sukces", f"Zapisano {len(self.saved_events_paths)} eventów. Kliknij w event na liście, aby zobaczyć analizę prędkości.")
+            QMessageBox.information(self, "Success", f"Saved {len(self.saved_events_paths)} events. Click an event in the list to view its velocity analysis.")
             
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Wystąpił błąd:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"Wystąpił błąd:\n{str(e)}")
 
     def on_event_clicked(self, item):
         row = self.list_events.row(item)
@@ -354,4 +354,4 @@ class ModuleAir(QWidget):
             self.canvas.draw()
             
         except Exception as e:
-            QMessageBox.critical(self, "Błąd", f"Nie udało się przeanalizować eventu:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to analyze event:\n{str(e)}")
