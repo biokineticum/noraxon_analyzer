@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import numpy as np
 
+from filter_utils import FilterWidget, apply_filter
+
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QComboBox, QLineEdit, 
                                QGroupBox, QFormLayout, QMessageBox, QCheckBox, QListWidget)
@@ -82,6 +84,15 @@ class ModuleAir(QWidget):
         
         group_map.setLayout(map_layout)
         control_layout.addWidget(group_map)
+        
+        # 2.5 Data Filtering
+        group_filter = QGroupBox("2.5 Data Filtering")
+        filter_layout = QVBoxLayout()
+        self.filter_widget = FilterWidget()
+        self.filter_widget.get_data_callback = self.get_preview_data
+        filter_layout.addWidget(self.filter_widget)
+        group_filter.setLayout(filter_layout)
+        control_layout.addWidget(group_filter)
         
         # 3. Parameters
         group_params = QGroupBox("3. Detection (Acceleration)")
@@ -182,10 +193,20 @@ class ModuleAir(QWidget):
             elif 'accel' in col_lower and 'z' in col_lower:
                 self.combo_az.setCurrentIndex(i + 1)
                 
+        self.filter_widget.update_preview_signals(columns)
+                
         self.btn_calc.setEnabled(True)
         self.list_events.clear()
         self.saved_events_paths = []
         QMessageBox.information(self, "Success", f"Loaded {len(self.data)} rows.")
+
+    def get_preview_data(self):
+        if self.data is None:
+            return None, None, []
+        time_col = self.combo_time.currentText()
+        if time_col == "--- None ---":
+            return None, None, []
+        return self.data.copy(), time_col, list(self.data.columns)
 
     def calculate_and_cut(self):
         if self.data is None:
@@ -226,8 +247,18 @@ class ModuleAir(QWidget):
                 df['ay'] = df[ay_col]
                 df['az'] = df[az_col]
                 
-            df['resultant_acceleration'] = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2)
             df['Time'] = df[time_col]
+            
+            # Apply Filter
+            f_set = self.filter_widget.get_filter_settings()
+            if f_set["type"] != "None":
+                t_arr = df['Time'].values
+                if ax_col != "--- None ---" and ay_col != "--- None ---" and az_col != "--- None ---":
+                    df['ax'] = apply_filter(df['ax'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    df['ay'] = apply_filter(df['ay'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    df['az'] = apply_filter(df['az'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                
+            df['resultant_acceleration'] = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2)
             
             # Find peaks based on ACCELERATION
             valid_data = df[df['resultant_acceleration'] >= accel_thresh]

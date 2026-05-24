@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks
 
+from filter_utils import FilterWidget, apply_filter
+
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QComboBox, QLineEdit, 
                                QGroupBox, QFormLayout, QMessageBox, QCheckBox)
@@ -81,6 +83,15 @@ class ModuleExtractor(QWidget):
         
         group_map.setLayout(map_layout)
         control_layout.addWidget(group_map)
+        
+        # 2.5 Data Filtering
+        group_filter = QGroupBox("2.5 Data Filtering")
+        filter_layout = QVBoxLayout()
+        self.filter_widget = FilterWidget()
+        self.filter_widget.get_data_callback = self.get_preview_data
+        filter_layout.addWidget(self.filter_widget)
+        group_filter.setLayout(filter_layout)
+        control_layout.addWidget(group_filter)
         
         # 3. Parameters
         group_params = QGroupBox("3. Detection Parameters (Force Plate)")
@@ -166,6 +177,8 @@ class ModuleExtractor(QWidget):
             combo.clear()
             combo.addItems(["--- None ---"] + columns)
             
+        self.filter_widget.update_preview_signals(columns)
+            
         # Auto-guess columns based on common names
         for i, col in enumerate(columns):
             col_lower = col.lower()
@@ -186,6 +199,14 @@ class ModuleExtractor(QWidget):
                 
         self.btn_calc.setEnabled(True)
         QMessageBox.information(self, "Success", f"Successfully loaded file. Found {len(self.data)} rows.")
+
+    def get_preview_data(self):
+        if self.data is None:
+            return None, None, []
+        time_col = self.combo_time.currentText()
+        if time_col == "--- None ---":
+            return None, None, []
+        return self.data.copy(), time_col, list(self.data.columns)
 
     def calculate_and_plot(self):
         if self.data is None:
@@ -243,6 +264,24 @@ class ModuleExtractor(QWidget):
                 df['resultant_acceleration'] = 0.0 # Placeholder
                 
             df['Time'] = df[time_col]
+            
+            # Apply Filter
+            f_set = self.filter_widget.get_filter_settings()
+            if f_set["type"] != "None":
+                t_arr = df['Time'].values
+                
+                # Filter force
+                df['fx'] = apply_filter(df['fx'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                df['fy'] = apply_filter(df['fy'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                df['fz'] = apply_filter(df['fz'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                df['resultant_force'] = np.sqrt(df['fx']**2 + df['fy']**2 + df['fz']**2)
+                
+                # Filter accel if present
+                if ax_col != "--- None ---" and ay_col != "--- None ---" and az_col != "--- None ---":
+                    df['ax'] = apply_filter(df['ax'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    df['ay'] = apply_filter(df['ay'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    df['az'] = apply_filter(df['az'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    df['resultant_acceleration'] = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2)
             
             # Find peaks (logic from notebook)
             valid_data = df[df['resultant_force'] >= force_thresh]
