@@ -8,6 +8,9 @@
 
 Aplikacja desktopowa do zaawansowanej analizy danych biomechanicznych z platform tensometrycznych oraz czujników inercyjnych (EMG/Accel). Pozwala na cięcie surowych danych na pojedyncze zdarzenia (uderzenia/ruchy), analizę siły wypadkowej, przyspieszenia oraz automatyczne całkowanie numeryczne do prędkości z generowaniem podsumowań.
 
+### Dokumentacja dodatkowa
+- [Instrukcja filtrowania sygnałów biomechanicznych (Zalecenia m.in. Noraxon)](file:///c:/Users/Lenovo/Documents/aplikacja%20uderzenia/Instrukcja_filtrowania.md)
+
 ### Instrukcja Instalacji (Dla osób bez zainstalowanego Pythona)
 
 Jeśli nie masz na komputerze zainstalowanego Pythona ani żadnych bibliotek programistycznych, postępuj zgodnie z poniższymi krokami, aby uruchomić aplikację.
@@ -47,6 +50,9 @@ Od teraz wystarczy zawsze wywoływać tę jedną komendę!
 ## 🇬🇧 English Version
 
 A desktop application for advanced biomechanical data analysis using force plates and inertial sensors (EMG/Accel). It enables cutting raw data into individual events (impacts/movements), analyzing resultant force, acceleration, and performing automatic numerical integration to velocity with comprehensive summary reports.
+
+### Additional Documentation
+- [Biomechanical Signal Filtering Guide (Polish)](file:///c:/Users/Lenovo/Documents/aplikacja%20uderzenia/Instrukcja_filtrowania.md)
 
 ### Installation Guide (For Users Without Python Installed)
 
