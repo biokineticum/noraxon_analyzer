@@ -307,7 +307,6 @@ class ModuleBulk(QWidget):
         self.results_data = []
         
         self.init_ui()
-        self.apply_premium_style()
         
     def init_ui(self):
         main_layout = QHBoxLayout(self)
@@ -322,15 +321,12 @@ class ModuleBulk(QWidget):
         
         self.btn_add_files = QPushButton("Dodaj Pliki (.xlsx, .csv)")
         self.btn_add_files.clicked.connect(self.add_files)
-        self.btn_add_files.setStyleSheet("background-color: #2980B9; color: white; font-weight: bold; padding: 6px;")
         
         self.list_files = QListWidget()
         self.list_files.setSelectionMode(QListWidget.MultiSelection)
         
         self.btn_remove_files = QPushButton("Usuń Zaznaczone Pliki")
         self.btn_remove_files.clicked.connect(self.remove_files)
-        self.btn_remove_files.setStyleSheet("background-color: #C0392B; color: white; font-weight: bold; padding: 4px;")
-        
         files_layout.addWidget(self.btn_add_files)
         files_layout.addWidget(self.list_files)
         files_layout.addWidget(self.btn_remove_files)
@@ -375,7 +371,6 @@ class ModuleBulk(QWidget):
         
         self.btn_run = QPushButton("Uruchom Analizę Zbiorczą")
         self.btn_run.clicked.connect(self.run_bulk_analysis)
-        self.btn_run.setStyleSheet("background-color: #27AE60; color: white; font-weight: bold; font-size: 13px; padding: 10px;")
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
@@ -384,12 +379,10 @@ class ModuleBulk(QWidget):
         
         self.lbl_status = QLabel("Wybierz pliki i kliknij Uruchom.")
         self.lbl_status.setWordWrap(True)
-        self.lbl_status.setStyleSheet("color: #7F8C8D; font-style: italic;")
         
         self.btn_export = QPushButton("Eksportuj do Excela (.xlsx)")
         self.btn_export.clicked.connect(self.export_to_excel)
         self.btn_export.setEnabled(False)
-        self.btn_export.setStyleSheet("background-color: #8E44AD; color: white; font-weight: bold; font-size: 13px; padding: 10px;")
         
         actions_layout.addWidget(self.btn_run)
         actions_layout.addWidget(self.progress_bar)
@@ -419,81 +412,6 @@ class ModuleBulk(QWidget):
         
         main_layout.addWidget(control_panel)
         main_layout.addWidget(right_panel, stretch=1)
-        
-    def apply_premium_style(self):
-        # We define a sleek, dark/light hybrid theme with glowing accents for this module
-        self.setStyleSheet("""
-            QWidget {
-                font-family: 'Segoe UI', Arial, sans-serif;
-            }
-            QGroupBox {
-                border: 2px solid #BDC3C7;
-                border-radius: 8px;
-                margin-top: 10px;
-                padding-top: 10px;
-                font-weight: bold;
-                color: #2C3E50;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                left: 10px;
-                padding: 0 3px;
-                background-color: transparent;
-            }
-            QLineEdit {
-                border: 1px solid #BDC3C7;
-                border-radius: 4px;
-                padding: 4px;
-                background-color: #FAFAFA;
-                selection-background-color: #3498DB;
-            }
-            QLineEdit:focus {
-                border: 1px solid #3498DB;
-                background-color: #FFFFFF;
-            }
-            QListWidget {
-                border: 1px solid #BDC3C7;
-                border-radius: 4px;
-                background-color: #F8F9F9;
-            }
-            QTableWidget {
-                gridline-color: #D6DBDF;
-                border: 1px solid #BDC3C7;
-                border-radius: 4px;
-                background-color: #FFFFFF;
-            }
-            QHeaderView::section {
-                background-color: #34495E;
-                color: white;
-                padding: 4px;
-                border: 1px solid #2C3E50;
-                font-weight: bold;
-            }
-            QProgressBar {
-                border: 1px solid #BDC3C7;
-                border-radius: 4px;
-                background-color: #ECF0F1;
-            }
-            QProgressBar::chunk {
-                background-color: #2ECC71;
-                width: 20px;
-            }
-            QPushButton {
-                border: none;
-                border-radius: 4px;
-                padding: 6px;
-                color: white;
-            }
-            QPushButton:hover {
-                opacity: 0.9;
-                filter: brightness(1.2);
-            }
-            QPushButton:disabled {
-                background-color: #BDC3C7;
-                color: #7F8C8D;
-            }
-        """)
         
     def add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Wybierz Pliki Dane", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
