@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 
-from filter_utils import FilterWidget, apply_filter
+from filter_utils import FilterWidget, apply_filter, calculate_contact_time
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QComboBox, QLineEdit, 
@@ -220,14 +220,14 @@ class ModuleAir(QWidget):
         if time_col == "--- None ---" or ax_col == "--- None ---" or ay_col == "--- None ---" or az_col == "--- None ---":
             QMessageBox.warning(self, "Warning", "You must select the Time column and Acceleration X, Y, Z columns.")
             return
-            
-        try:
+                    try:
             accel_thresh = float(self.inp_accel_thresh.text())
             window_size = float(self.inp_window.text())
             min_sep = float(self.inp_min_sep.text())
             num_peaks = int(self.inp_num_peaks.text())
             
             df = self.data.copy()
+            columns = list(df.columns)
             
             if self.chk_convert_mg.isChecked():
                 # Przekonwertuj wszystkie kolumny mG w całym dataframe
@@ -259,6 +259,25 @@ class ModuleAir(QWidget):
                     df['az'] = apply_filter(df['az'].values, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
                 
             df['resultant_acceleration'] = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2)
+            
+            # Auto-detect force columns if present
+            fx_col = next((c for c in columns if 'force' in c.lower() and 'fx' in c.lower()), None)
+            fy_col = next((c for c in columns if 'force' in c.lower() and 'fy' in c.lower()), None)
+            fz_col = next((c for c in columns if 'force' in c.lower() and 'fz' in c.lower()), None)
+            
+            has_force_raw = (fx_col is not None) and (fy_col is not None) and (fz_col is not None)
+            if has_force_raw:
+                fx_vals = df[fx_col].values
+                fy_vals = df[fy_col].values
+                fz_vals = df[fz_col].values
+                
+                if f_set["type"] != "None":
+                    t_arr = df['Time'].values
+                    fx_vals = apply_filter(fx_vals, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    fy_vals = apply_filter(fy_vals, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    fz_vals = apply_filter(fz_vals, t_arr, f_set["type"], f_set["param1"], f_set["param2"])
+                    
+                df['resultant_force'] = np.sqrt(fx_vals**2 + fy_vals**2 + fz_vals**2)
             
             # Find peaks based on ACCELERATION
             valid_data = df[df['resultant_acceleration'] >= accel_thresh]
@@ -293,6 +312,23 @@ class ModuleAir(QWidget):
                 end_time = peak_time + self.window_size / 2
                 
                 event_data = self.processed_df[(self.processed_df['Time'] >= start_time) & (self.processed_df['Time'] <= end_time)].copy()
+                
+                # If force is available, calculate contact time and store it
+                if 'resultant_force' in self.processed_df.columns:
+                    contact_time_val = np.nan
+                    try:
+                        peak_pos = self.processed_df.index.get_loc(peak_index)
+                        contact_info = calculate_contact_time(
+                            self.processed_df['Time'].values,
+                            self.processed_df['resultant_force'].values,
+                            peak_pos,
+                            threshold=50.0
+                        )
+                        if contact_info:
+                            contact_time_val = contact_info[4]
+                    except Exception as e:
+                        print(f"Error calculating contact time: {e}")
+                    event_data['contact_time_sec'] = contact_time_val
                 
                 event_file_name = os.path.join(base_dir, f'{base_name}_air_event_{i + 1}.xlsx')
                 event_data.to_excel(event_file_name, index=False)
@@ -343,6 +379,33 @@ class ModuleAir(QWidget):
             df['vel_z'] = compute_velocity(az_vals, time_vals)
             df['vel_resultant'] = np.sqrt(df['vel_x']**2 + df['vel_y']**2 + df['vel_z']**2)
             
+            has_force = 'resultant_force' in df.columns
+            contact_time_val = None
+            start_time = None
+            end_time = None
+            peak_time = None
+            peak_force = None
+            
+            if has_force:
+                max_force_idx = df['resultant_force'].idxmax()
+                peak_time = df['Time'].loc[max_force_idx]
+                peak_force = df['resultant_force'].loc[max_force_idx]
+                
+                if 'contact_time_sec' in df.columns:
+                    non_nan = df['contact_time_sec'].dropna()
+                    if not non_nan.empty:
+                        contact_time_val = non_nan.iloc[0]
+                        
+                try:
+                    peak_pos = df.index.get_loc(max_force_idx)
+                    contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                    if contact_info:
+                        _, _, start_time, end_time, calculated_ct = contact_info
+                        if contact_time_val is None or np.isnan(contact_time_val):
+                            contact_time_val = calculated_ct
+                except Exception as e:
+                    print(f"Error calculating contact time: {e}")
+
             # Summary report
             max_vx = df['vel_x'].max()
             max_vy = df['vel_y'].max()
@@ -353,33 +416,60 @@ class ModuleAir(QWidget):
                 f"=== RAPORT ZDARZENIA {row+1} ===\n"
                 f"Max vel_x: {max_vx:.2f} m/s\n"
                 f"Max vel_y: {max_vy:.2f} m/s\n"
-                f"Max vel_z: {max_vz:.2f} m/s\n\n"
+                f"Max vel_z: {max_vz:.2f} m/s\n"
                 f"MAX RESULTANT: {max_res:.2f} m/s\n"
             )
+            if contact_time_val is not None and not np.isnan(contact_time_val):
+                summary_text += f"Czas kontaktu z tarczą: {contact_time_val:.3f} s\n"
+                
             self.lbl_summary.setText(summary_text)
             
             # Plot
             self.figure.clear()
-            axes = self.figure.subplots(4, 1, sharex=True)
+            num_plots = 5 if has_force else 4
+            axes = self.figure.subplots(num_plots, 1, sharex=True)
             
-            axes[0].plot(df['Time'], df['vel_x'], color='#E74C3C', linewidth=1.3)
-            axes[0].set_ylabel('Vel X (m/s)')
-            axes[0].grid(True, alpha=0.3)
-            axes[0].set_title(f'Velocity Components - Event {row+1}')
+            curr_idx = 0
+            if has_force:
+                axes[curr_idx].plot(df['Time'], df['resultant_force'], color='#E74C3C', linewidth=1.5)
+                axes[curr_idx].set_ylabel('Force (N)')
+                axes[curr_idx].axvline(peak_time, color='gray', linestyle='--', alpha=0.7)
+                axes[curr_idx].plot(peak_time, peak_force, marker='o', markersize=10, markerfacecolor='gold', markeredgecolor='black')
+                axes[curr_idx].text(peak_time + 0.01, peak_force, f'Max Force\n{peak_force:.0f} N', color='#E74C3C', fontweight='bold', va='top')
+                
+                # Show threshold and contact line on plot
+                axes[curr_idx].axhline(50, color='gray', linestyle='--', alpha=0.5)
+                if start_time is not None and end_time is not None and contact_time_val is not None:
+                    axes[curr_idx].plot([start_time, end_time], [50, 50], color='green', linewidth=2.5, marker='|')
+                    axes[curr_idx].axvline(start_time, color='green', linestyle=':', alpha=0.6)
+                    axes[curr_idx].axvline(end_time, color='green', linestyle=':', alpha=0.6)
+                    axes[curr_idx].text((start_time + end_time)/2, 60, f"Kontakt: {contact_time_val:.3f}s", color='green', fontweight='bold', ha='center', va='bottom')
+                axes[curr_idx].grid(True, alpha=0.3)
+                axes[curr_idx].set_title(f'Event {row+1} - Force & Velocity Components', fontweight='bold')
+                curr_idx += 1
+                
+            axes[curr_idx].plot(df['Time'], df['vel_x'], color='#E74C3C', linewidth=1.3)
+            axes[curr_idx].set_ylabel('Vel X (m/s)')
+            axes[curr_idx].grid(True, alpha=0.3)
+            if not has_force:
+                axes[curr_idx].set_title(f'Velocity Components - Event {row+1}')
+            curr_idx += 1
             
-            axes[1].plot(df['Time'], df['vel_y'], color='#3498DB', linewidth=1.3)
-            axes[1].set_ylabel('Vel Y (m/s)')
-            axes[1].grid(True, alpha=0.3)
+            axes[curr_idx].plot(df['Time'], df['vel_y'], color='#3498DB', linewidth=1.3)
+            axes[curr_idx].set_ylabel('Vel Y (m/s)')
+            axes[curr_idx].grid(True, alpha=0.3)
+            curr_idx += 1
             
-            axes[2].plot(df['Time'], df['vel_z'], color='#2ECC71', linewidth=1.3)
-            axes[2].set_ylabel('Vel Z (m/s)')
-            axes[2].grid(True, alpha=0.3)
+            axes[curr_idx].plot(df['Time'], df['vel_z'], color='#2ECC71', linewidth=1.3)
+            axes[curr_idx].set_ylabel('Vel Z (m/s)')
+            axes[curr_idx].grid(True, alpha=0.3)
+            curr_idx += 1
             
-            axes[3].plot(df['Time'], df['vel_resultant'], color='#9B59B6', linewidth=1.6)
-            axes[3].fill_between(df['Time'], df['vel_resultant'], alpha=0.15, color='#9B59B6')
-            axes[3].set_ylabel('Resultant (m/s)')
-            axes[3].set_xlabel('Time (s)')
-            axes[3].grid(True, alpha=0.3)
+            axes[curr_idx].plot(df['Time'], df['vel_resultant'], color='#9B59B6', linewidth=1.6)
+            axes[curr_idx].fill_between(df['Time'], df['vel_resultant'], alpha=0.15, color='#9B59B6')
+            axes[curr_idx].set_ylabel('Resultant (m/s)')
+            axes[curr_idx].set_xlabel('Time (s)')
+            axes[curr_idx].grid(True, alpha=0.3)
             
             self.figure.tight_layout()
             self.canvas.draw()

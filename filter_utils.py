@@ -217,3 +217,34 @@ class FilterWidget(QWidget):
         
         dialog = FilterPreviewDialog(original_data, filtered_data, time_data, signal_to_preview, self)
         dialog.exec()
+
+def calculate_contact_time(time_vals, force_vals, peak_idx, threshold=50.0):
+    """
+    Given arrays of time and force, and a peak index (integer position),
+    calculates the contact time by finding when the force first crosses
+    threshold before and after the peak.
+    Returns: (start_idx, end_idx, start_time, end_time, contact_time)
+    """
+    try:
+        n = len(force_vals)
+        if peak_idx < 0 or peak_idx >= n:
+            return None
+            
+        # Go backwards from peak_idx to find first index below threshold
+        start_idx = peak_idx
+        while start_idx > 0 and force_vals[start_idx] >= threshold:
+            start_idx -= 1
+            
+        # Go forwards from peak_idx to find first index below threshold
+        end_idx = peak_idx
+        while end_idx < n - 1 and force_vals[end_idx] >= threshold:
+            end_idx += 1
+            
+        start_time = time_vals[start_idx]
+        end_time = time_vals[end_idx]
+        contact_time = end_time - start_time
+        return start_idx, end_idx, start_time, end_time, contact_time
+    except Exception as e:
+        print(f"Error calculating contact time: {e}")
+        return None
+

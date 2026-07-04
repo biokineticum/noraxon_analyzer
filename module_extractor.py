@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks
 
-from filter_utils import FilterWidget, apply_filter
+from filter_utils import FilterWidget, apply_filter, calculate_contact_time
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QComboBox, QLineEdit, 
@@ -298,18 +298,34 @@ class ModuleExtractor(QWidget):
             self.top_peak_indices = top_peaks
             self.processed_df = df
             self.window_size = window_size
-            
-            # Plot
+                        # Plot
             self.figure.clear()
             ax = self.figure.add_subplot(111)
             
             ax.plot(df['Time'], df['resultant_force'], label='Resultant Force', linewidth=0.7, color='#2E86AB')
+            ax.axhline(50, color='gray', linestyle='--', alpha=0.5, label='Threshold 50 N')
             
             for idx, peak_idx in enumerate(self.top_peak_indices, 1):
                 peak_time = df['Time'].loc[peak_idx]
                 ax.plot(peak_time, df['resultant_force'].loc[peak_idx], 'X', markersize=14, 
                          label=f'Peak {idx}', markeredgecolor='black', markeredgewidth=0.8)
                 ax.axvspan(peak_time - window_size/2, peak_time + window_size/2, color='red', alpha=0.15)
+                
+                # Contact time calculation and display
+                try:
+                    peak_pos = df.index.get_loc(peak_idx)
+                    contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                    if contact_info:
+                        start_idx, end_idx, start_time, end_time, contact_time = contact_info
+                        # Plot horizontal green line at 50 N
+                        ax.plot([start_time, end_time], [50, 50], color='green', linewidth=2.5, marker='|')
+                        # Vertical dotted lines
+                        ax.axvline(start_time, color='green', linestyle=':', alpha=0.6)
+                        ax.axvline(end_time, color='green', linestyle=':', alpha=0.6)
+                        # Text annotation above the line
+                        ax.text((start_time + end_time)/2, 60, f"{contact_time:.3f}s", color='green', fontweight='bold', ha='center', va='bottom')
+                except Exception as e:
+                    print(f"Error drawing contact time for peak {idx}: {e}")
                 
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Resultant Force (N)')
@@ -322,11 +338,22 @@ class ModuleExtractor(QWidget):
             self.btn_save.setEnabled(len(top_peaks) > 0)
             
             msg = f"Found {len(top_peaks)} peaks.\nThey have been marked on the plot."
+            if len(self.top_peak_indices) > 0:
+                msg += "\n\nContact Times (Czas kontaktu):\n"
+                for idx, peak_idx in enumerate(self.top_peak_indices, 1):
+                    try:
+                        peak_pos = df.index.get_loc(peak_idx)
+                        contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                        if contact_info:
+                            msg += f"Peak {idx}: {contact_info[4]:.3f} s\n"
+                    except:
+                        pass
+                        
             QMessageBox.information(self, "Analysis Complete", msg)
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"An error occurred during analysis:\n{str(e)}")
-
+ 
     def save_events(self):
         if not hasattr(self, 'processed_df') or not self.top_peak_indices:
             return
@@ -344,9 +371,24 @@ class ModuleExtractor(QWidget):
                 # Extract event (including all original columns plus the new mapped ones)
                 event_data = self.processed_df[(self.processed_df['Time'] >= start_time) & (self.processed_df['Time'] <= end_time)].copy()
                 
-                event_file_name = os.path.join(base_dir, f'{base_name}_event_{i + 1}.xlsx')
+                # Calculate contact time on full data
+                contact_time_val = np.nan
+                try:
+                    peak_pos = self.processed_df.index.get_loc(peak_index)
+                    contact_info = calculate_contact_time(
+                        self.processed_df['Time'].values, 
+                        self.processed_df['resultant_force'].values, 
+                        peak_pos,
+                        threshold=50.0
+                    )
+                    if contact_info:
+                        contact_time_val = contact_info[4]
+                except Exception as e:
+                    print(f"Error calculating contact time in save: {e}")
                 
-                # Clean up temporary columns if needed or just save everything. We save everything to retain raw data and our mapped data.
+                event_data['contact_time_sec'] = contact_time_val
+                
+                event_file_name = os.path.join(base_dir, f'{base_name}_event_{i + 1}.xlsx')
                 event_data.to_excel(event_file_name, index=False)
                 saved_files.append(os.path.basename(event_file_name))
                 

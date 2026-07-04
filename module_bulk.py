@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 from scipy.signal import butter, filtfilt
 
+from filter_utils import calculate_contact_time
+
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QLineEdit, QGroupBox, 
                                QFormLayout, QMessageBox, QCheckBox, QTableWidget, 
@@ -24,7 +26,8 @@ COLUMNS_FORMAT = [
     '2Max Force (Resultant)', '2Max vel_x m/s', '2Max vel_y m/s', '2Max vel_z m/s', '2MAX Resultant m/s',
     '3Velocity X m/s', '3Velocity Y m/s', '3Velocity Z m/s', '3Resultant Velocity m/s',
     '3Acceleration X m/s2', '3Acceleration Y m/s2', '3Acceleration Z m/s2', '3Resultant Acceleration',
-    '3Max Force (Resultant)', '3Max vel_x m/s', '3Max vel_y m/s', '3Max vel_z m/s', '3MAX Resultant m/s'
+    '3Max Force (Resultant)', '3Max vel_x m/s', '3Max vel_y m/s', '3Max vel_z m/s', '3MAX Resultant m/s',
+    'Czas kontaktu z tarczą (s)'
 ]
 
 # Columns that can be edited by the user in the table
@@ -200,6 +203,15 @@ class AnalysisWorker(QThread):
                         
                     peak_rel_idx = np.where(w_indices == peak_idx)[0][0]
                     
+                    # Calculate contact time
+                    contact_time_val = np.nan
+                    try:
+                        contact_info = calculate_contact_time(time_vals, res_force, peak_idx, threshold=50.0)
+                        if contact_info:
+                            contact_time_val = contact_info[4]
+                    except Exception as e:
+                        print(f"Error calculating contact time in bulk: {e}")
+
                     row_dict = {
                         'zawodnik': athlete,
                         'plec': np.nan,
@@ -207,7 +219,8 @@ class AnalysisWorker(QThread):
                         'masa': np.nan,
                         'wysokość ciała': np.nan,
                         'rodzaj uderzenia': side,
-                        'nr uderzenia': peak_num + 1
+                        'nr uderzenia': peak_num + 1,
+                        'Czas kontaktu z tarczą (s)': contact_time_val
                     }
                     
                     # Calculate for each sensor (up to 3)
@@ -500,6 +513,8 @@ class ModuleBulk(QWidget):
                         item_text = f"{int(round(val))}"
                     elif "Velocity" in col_name or "vel" in col_name:
                         item_text = f"{val:.2f}"
+                    elif "Czas kontaktu" in col_name or "Contact Time" in col_name:
+                        item_text = f"{val:.3f}"
                     else:
                         item_text = f"{val:.1f}"
                 elif isinstance(val, int):

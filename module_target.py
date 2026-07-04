@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import numpy as np
 
+from filter_utils import calculate_contact_time
+
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QGroupBox, QMessageBox, QComboBox, QFormLayout)
 from PySide6.QtCore import Qt
@@ -193,10 +195,29 @@ class ModuleTarget(QWidget):
             )
             
             # Wyszukanie momentu maksymalnej siły
+            contact_time_val = None
+            start_time = None
+            end_time = None
             if 'resultant_force' in df.columns:
                 max_force_idx = df['resultant_force'].idxmax()
                 peak_time = df[time_col].loc[max_force_idx]
                 peak_force = df['resultant_force'].loc[max_force_idx]
+                
+                # Check for saved contact time or calculate it
+                if 'contact_time_sec' in df.columns:
+                    non_nan = df['contact_time_sec'].dropna()
+                    if not non_nan.empty:
+                        contact_time_val = non_nan.iloc[0]
+                
+                try:
+                    peak_pos = df.index.get_loc(max_force_idx)
+                    contact_info = calculate_contact_time(df[time_col].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                    if contact_info:
+                        _, _, start_time, end_time, calculated_ct = contact_info
+                        if contact_time_val is None or np.isnan(contact_time_val):
+                            contact_time_val = calculated_ct
+                except Exception as e:
+                    print(f"Error calculating contact time in target: {e}")
                 
                 # Przyspieszenie i prędkość w momencie uderzenia
                 if 'resultant_acceleration' in df.columns:
@@ -215,8 +236,13 @@ class ModuleTarget(QWidget):
                 summary_text += (
                     f"=== W MOMENCIE MAX FORCE ===\n"
                     f"Impact Time: {peak_time:.3f} s\n"
-                    f"Max Force (Resultant): {peak_force:.0f} N\n\n"
-                    f"Acceleration X: {peak_ax:.1f} m/s²\n"
+                    f"Max Force (Resultant): {peak_force:.0f} N\n"
+                )
+                if contact_time_val is not None and not np.isnan(contact_time_val):
+                    summary_text += f"Czas kontaktu z tarczą: {contact_time_val:.3f} s\n"
+                
+                summary_text += (
+                    f"\nAcceleration X: {peak_ax:.1f} m/s²\n"
                     f"Acceleration Y: {peak_ay:.1f} m/s²\n"
                     f"Acceleration Z: {peak_az:.1f} m/s²\n"
                     f"Resultant Acceleration: {peak_accel:.1f} m/s²\n\n"
@@ -243,6 +269,14 @@ class ModuleTarget(QWidget):
                 axes[0].axvline(peak_time, color='gray', linestyle='--', alpha=0.7)
                 axes[0].plot(peak_time, peak_force, marker='o', markersize=10, markerfacecolor='gold', markeredgecolor='black')
                 axes[0].text(peak_time + 0.01, peak_force, f'Max Force\n{peak_force:.0f} N', color='#E74C3C', fontweight='bold', va='top')
+                
+                # Show threshold and contact line on plot
+                axes[0].axhline(50, color='gray', linestyle='--', alpha=0.5)
+                if start_time is not None and end_time is not None and contact_time_val is not None:
+                    axes[0].plot([start_time, end_time], [50, 50], color='green', linewidth=2.5, marker='|')
+                    axes[0].axvline(start_time, color='green', linestyle=':', alpha=0.6)
+                    axes[0].axvline(end_time, color='green', linestyle=':', alpha=0.6)
+                    axes[0].text((start_time + end_time)/2, 60, f"Kontakt: {contact_time_val:.3f}s", color='green', fontweight='bold', ha='center', va='bottom')
             else:
                 axes[0].text(0.5, 0.5, 'Missing resultant_force column', transform=axes[0].transAxes, ha='center')
             axes[0].grid(True, alpha=0.3)
