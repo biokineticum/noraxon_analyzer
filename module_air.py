@@ -220,7 +220,7 @@ class ModuleAir(QWidget):
         if time_col == "--- None ---" or ax_col == "--- None ---" or ay_col == "--- None ---" or az_col == "--- None ---":
             QMessageBox.warning(self, "Warning", "You must select the Time column and Acceleration X, Y, Z columns.")
             return
-                    try:
+        try:
             accel_thresh = float(self.inp_accel_thresh.text())
             window_size = float(self.inp_window.text())
             min_sep = float(self.inp_min_sep.text())
