@@ -7,7 +7,7 @@ from filter_utils import FilterWidget, apply_filter, calculate_contact_time
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QComboBox, QLineEdit, 
-                               QGroupBox, QFormLayout, QMessageBox, QCheckBox)
+                               QGroupBox, QFormLayout, QMessageBox, QCheckBox, QSlider)
 from PySide6.QtCore import Qt
 
 import matplotlib
@@ -102,10 +102,20 @@ class ModuleExtractor(QWidget):
         self.inp_min_sep = QLineEdit("0.5")
         self.inp_num_peaks = QLineEdit("5")
         
-        params_layout.addRow("Force Threshold (N):", self.inp_force_thresh)
+        params_layout.addRow("Impact Force Thresh (N):", self.inp_force_thresh)
         params_layout.addRow("Window Size (s):", self.inp_window)
         params_layout.addRow("Min Separation (s):", self.inp_min_sep)
         params_layout.addRow("Num Peaks:", self.inp_num_peaks)
+        
+        slider_layout = QHBoxLayout()
+        self.lbl_contact_thresh = QLabel("50")
+        self.slider_contact_thresh = QSlider(Qt.Horizontal)
+        self.slider_contact_thresh.setRange(0, 100)
+        self.slider_contact_thresh.setValue(50)
+        self.slider_contact_thresh.valueChanged.connect(self.update_thresh_label)
+        slider_layout.addWidget(self.slider_contact_thresh)
+        slider_layout.addWidget(self.lbl_contact_thresh)
+        params_layout.addRow("Contact Time Thresh (N):", slider_layout)
         
         group_params.setLayout(params_layout)
         control_layout.addWidget(group_params)
@@ -144,6 +154,9 @@ class ModuleExtractor(QWidget):
         
         main_layout.addWidget(control_panel)
         main_layout.addWidget(plot_panel, stretch=1)
+
+    def update_thresh_label(self, value):
+        self.lbl_contact_thresh.setText(str(value))
 
     def load_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Data File", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
@@ -303,7 +316,8 @@ class ModuleExtractor(QWidget):
             ax = self.figure.add_subplot(111)
             
             ax.plot(df['Time'], df['resultant_force'], label='Resultant Force', linewidth=0.7, color='#2E86AB')
-            ax.axhline(50, color='gray', linestyle='--', alpha=0.5, label='Threshold 50 N')
+            thresh_val = float(self.slider_contact_thresh.value())
+            ax.axhline(thresh_val, color='gray', linestyle='--', alpha=0.5, label=f'Threshold {thresh_val} N')
             
             for idx, peak_idx in enumerate(self.top_peak_indices, 1):
                 peak_time = df['Time'].loc[peak_idx]
@@ -314,11 +328,11 @@ class ModuleExtractor(QWidget):
                 # Contact time calculation and display
                 try:
                     peak_pos = df.index.get_loc(peak_idx)
-                    contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                    contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=thresh_val)
                     if contact_info:
                         start_idx, end_idx, start_time, end_time, contact_time = contact_info
-                        # Plot horizontal green line at 50 N
-                        ax.plot([start_time, end_time], [50, 50], color='green', linewidth=2.5, marker='|')
+                        # Plot horizontal green line at thresh_val N
+                        ax.plot([start_time, end_time], [thresh_val, thresh_val], color='green', linewidth=2.5, marker='|')
                         # Vertical dotted lines
                         ax.axvline(start_time, color='green', linestyle=':', alpha=0.6)
                         ax.axvline(end_time, color='green', linestyle=':', alpha=0.6)
@@ -343,7 +357,7 @@ class ModuleExtractor(QWidget):
                 for idx, peak_idx in enumerate(self.top_peak_indices, 1):
                     try:
                         peak_pos = df.index.get_loc(peak_idx)
-                        contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                        contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=float(self.slider_contact_thresh.value()))
                         if contact_info:
                             msg += f"Peak {idx}: {contact_info[4]:.3f} s\n"
                     except:
@@ -379,7 +393,7 @@ class ModuleExtractor(QWidget):
                         self.processed_df['Time'].values, 
                         self.processed_df['resultant_force'].values, 
                         peak_pos,
-                        threshold=50.0
+                        threshold=float(self.slider_contact_thresh.value())
                     )
                     if contact_info:
                         contact_time_val = contact_info[4]

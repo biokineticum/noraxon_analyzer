@@ -6,7 +6,7 @@ from filter_utils import FilterWidget, apply_filter, calculate_contact_time
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QComboBox, QLineEdit, 
-                               QGroupBox, QFormLayout, QMessageBox, QCheckBox, QListWidget)
+                               QGroupBox, QFormLayout, QMessageBox, QCheckBox, QListWidget, QSlider)
 from PySide6.QtCore import Qt
 
 import matplotlib
@@ -109,6 +109,16 @@ class ModuleAir(QWidget):
         params_layout.addRow("Min Separation (s):", self.inp_min_sep)
         params_layout.addRow("Num Peaks:", self.inp_num_peaks)
         
+        slider_layout = QHBoxLayout()
+        self.lbl_contact_thresh = QLabel("50")
+        self.slider_contact_thresh = QSlider(Qt.Horizontal)
+        self.slider_contact_thresh.setRange(0, 100)
+        self.slider_contact_thresh.setValue(50)
+        self.slider_contact_thresh.valueChanged.connect(self.update_thresh_label)
+        slider_layout.addWidget(self.slider_contact_thresh)
+        slider_layout.addWidget(self.lbl_contact_thresh)
+        params_layout.addRow("Contact Time Thresh (N):", slider_layout)
+        
         group_params.setLayout(params_layout)
         control_layout.addWidget(group_params)
         
@@ -151,6 +161,9 @@ class ModuleAir(QWidget):
         
         main_layout.addWidget(control_panel)
         main_layout.addWidget(plot_panel, stretch=1)
+
+    def update_thresh_label(self, value):
+        self.lbl_contact_thresh.setText(str(value))
 
     def load_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Data File", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
@@ -322,7 +335,7 @@ class ModuleAir(QWidget):
                             self.processed_df['Time'].values,
                             self.processed_df['resultant_force'].values,
                             peak_pos,
-                            threshold=50.0
+                            threshold=float(self.slider_contact_thresh.value())
                         )
                         if contact_info:
                             contact_time_val = contact_info[4]
@@ -398,7 +411,8 @@ class ModuleAir(QWidget):
                         
                 try:
                     peak_pos = df.index.get_loc(max_force_idx)
-                    contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                    thresh_val = float(self.slider_contact_thresh.value())
+                    contact_info = calculate_contact_time(df['Time'].values, df['resultant_force'].values, peak_pos, threshold=thresh_val)
                     if contact_info:
                         _, _, start_time, end_time, calculated_ct = contact_info
                         if contact_time_val is None or np.isnan(contact_time_val):
@@ -438,9 +452,10 @@ class ModuleAir(QWidget):
                 axes[curr_idx].text(peak_time + 0.01, peak_force, f'Max Force\n{peak_force:.0f} N', color='#E74C3C', fontweight='bold', va='top')
                 
                 # Show threshold and contact line on plot
-                axes[curr_idx].axhline(50, color='gray', linestyle='--', alpha=0.5)
+                thresh_val = float(self.slider_contact_thresh.value())
+                axes[curr_idx].axhline(thresh_val, color='gray', linestyle='--', alpha=0.5)
                 if start_time is not None and end_time is not None and contact_time_val is not None:
-                    axes[curr_idx].plot([start_time, end_time], [50, 50], color='green', linewidth=2.5, marker='|')
+                    axes[curr_idx].plot([start_time, end_time], [thresh_val, thresh_val], color='green', linewidth=2.5, marker='|')
                     axes[curr_idx].axvline(start_time, color='green', linestyle=':', alpha=0.6)
                     axes[curr_idx].axvline(end_time, color='green', linestyle=':', alpha=0.6)
                     axes[curr_idx].text((start_time + end_time)/2, 60, f"Kontakt: {contact_time_val:.3f}s", color='green', fontweight='bold', ha='center', va='bottom')

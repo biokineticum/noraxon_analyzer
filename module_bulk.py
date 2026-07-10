@@ -8,7 +8,7 @@ from filter_utils import calculate_contact_time
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QLabel, QFileDialog, QLineEdit, QGroupBox, 
                                QFormLayout, QMessageBox, QCheckBox, QTableWidget, 
-                               QTableWidgetItem, QProgressBar, QListWidget, QSplitter)
+                               QTableWidgetItem, QProgressBar, QListWidget, QSplitter, QSlider)
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QFont, QColor
 
@@ -206,7 +206,8 @@ class AnalysisWorker(QThread):
                     # Calculate contact time
                     contact_time_val = np.nan
                     try:
-                        contact_info = calculate_contact_time(time_vals, res_force, peak_idx, threshold=50.0)
+                        contact_thresh = self.params.get('contact_thresh', 50.0)
+                        contact_info = calculate_contact_time(time_vals, res_force, peak_idx, threshold=contact_thresh)
                         if contact_info:
                             contact_time_val = contact_info[4]
                     except Exception as e:
@@ -375,6 +376,16 @@ class ModuleBulk(QWidget):
         params_layout.addRow("Częst. odcięcia (Hz):", self.inp_filter_cutoff)
         params_layout.addRow("Rząd filtru Butterwortha:", self.inp_filter_order)
         
+        slider_layout = QHBoxLayout()
+        self.lbl_contact_thresh = QLabel("50")
+        self.slider_contact_thresh = QSlider(Qt.Horizontal)
+        self.slider_contact_thresh.setRange(0, 100)
+        self.slider_contact_thresh.setValue(50)
+        self.slider_contact_thresh.valueChanged.connect(self.update_thresh_label)
+        slider_layout.addWidget(self.slider_contact_thresh)
+        slider_layout.addWidget(self.lbl_contact_thresh)
+        params_layout.addRow("Próg czasu kontaktu (N):", slider_layout)
+        
         group_params.setLayout(params_layout)
         control_panel.addWidget(group_params)
         
@@ -426,6 +437,9 @@ class ModuleBulk(QWidget):
         main_layout.addWidget(control_panel)
         main_layout.addWidget(right_panel, stretch=1)
         
+    def update_thresh_label(self, value):
+        self.lbl_contact_thresh.setText(str(value))
+        
     def add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Wybierz Pliki Dane", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
         if files:
@@ -453,6 +467,7 @@ class ModuleBulk(QWidget):
             params = {
                 'skiprows': int(self.inp_skiprows.text()),
                 'force_thresh': float(self.inp_force_thresh.text()),
+                'contact_thresh': float(self.slider_contact_thresh.value()),
                 'window_size': float(self.inp_window.text()),
                 'min_sep': float(self.inp_min_sep.text()),
                 'num_peaks': int(self.inp_num_peaks.text()),

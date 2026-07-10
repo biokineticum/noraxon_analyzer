@@ -5,7 +5,7 @@ import numpy as np
 from filter_utils import calculate_contact_time
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
-                               QLabel, QFileDialog, QGroupBox, QMessageBox, QComboBox, QFormLayout)
+                               QLabel, QFileDialog, QGroupBox, QMessageBox, QComboBox, QFormLayout, QSlider)
 from PySide6.QtCore import Qt
 
 import matplotlib
@@ -67,8 +67,19 @@ class ModuleTarget(QWidget):
         control_layout.addWidget(group_map)
         
         # 3. Analyze
-        group_actions = QGroupBox("3. Velocity Calculations")
+        group_actions = QGroupBox("3. Analysis & Parameters")
         actions_layout = QVBoxLayout()
+        
+        slider_layout = QHBoxLayout()
+        self.lbl_contact_thresh = QLabel("Contact Force Thresh (N): 50")
+        self.slider_contact_thresh = QSlider(Qt.Horizontal)
+        self.slider_contact_thresh.setRange(0, 100)
+        self.slider_contact_thresh.setValue(50)
+        self.slider_contact_thresh.valueChanged.connect(self.update_thresh_label)
+        slider_layout.addWidget(self.lbl_contact_thresh)
+        slider_layout.addWidget(self.slider_contact_thresh)
+        actions_layout.addLayout(slider_layout)
+        
         self.btn_analyze = QPushButton("Analyze Velocity & Generate Report")
         self.btn_analyze.clicked.connect(self.analyze_event)
         self.btn_analyze.setEnabled(False)
@@ -101,6 +112,9 @@ class ModuleTarget(QWidget):
         
         main_layout.addWidget(control_panel)
         main_layout.addWidget(plot_panel, stretch=1)
+
+    def update_thresh_label(self, value):
+        self.lbl_contact_thresh.setText(f"Contact Force Thresh (N): {value}")
 
     def load_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select event file", "", "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)")
@@ -211,7 +225,8 @@ class ModuleTarget(QWidget):
                 
                 try:
                     peak_pos = df.index.get_loc(max_force_idx)
-                    contact_info = calculate_contact_time(df[time_col].values, df['resultant_force'].values, peak_pos, threshold=50.0)
+                    thresh_val = float(self.slider_contact_thresh.value())
+                    contact_info = calculate_contact_time(df[time_col].values, df['resultant_force'].values, peak_pos, threshold=thresh_val)
                     if contact_info:
                         _, _, start_time, end_time, calculated_ct = contact_info
                         if contact_time_val is None or np.isnan(contact_time_val):
@@ -271,9 +286,10 @@ class ModuleTarget(QWidget):
                 axes[0].text(peak_time + 0.01, peak_force, f'Max Force\n{peak_force:.0f} N', color='#E74C3C', fontweight='bold', va='top')
                 
                 # Show threshold and contact line on plot
-                axes[0].axhline(50, color='gray', linestyle='--', alpha=0.5)
+                thresh_val = float(self.slider_contact_thresh.value())
+                axes[0].axhline(thresh_val, color='gray', linestyle='--', alpha=0.5)
                 if start_time is not None and end_time is not None and contact_time_val is not None:
-                    axes[0].plot([start_time, end_time], [50, 50], color='green', linewidth=2.5, marker='|')
+                    axes[0].plot([start_time, end_time], [thresh_val, thresh_val], color='green', linewidth=2.5, marker='|')
                     axes[0].axvline(start_time, color='green', linestyle=':', alpha=0.6)
                     axes[0].axvline(end_time, color='green', linestyle=':', alpha=0.6)
                     axes[0].text((start_time + end_time)/2, 60, f"Kontakt: {contact_time_val:.3f}s", color='green', fontweight='bold', ha='center', va='bottom')
